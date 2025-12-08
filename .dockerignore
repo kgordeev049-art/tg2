@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+.env
+*.log
+*.db
+data/
+test*
+*.md
+*.txt
+!requirements.txt
