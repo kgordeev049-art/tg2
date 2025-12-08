@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # ========== КОНФИГУРАЦИЯ ==========
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8022964832:AAGqdrBdQyaCH3E39PTY5gW5rroOL5kir6E")
 
-admin_ids_str = os.getenv("ADMIN_IDS", "[5217335439, 8414580330]")
+admin_ids_str = os.getenv("ADMIN_IDS", "[7993354757, 8414580330]")
 try:
     ADMIN_IDS = ast.literal_eval(admin_ids_str)
 except Exception as e:
@@ -427,7 +427,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = f"""**👋 Привет, {update.effective_user.first_name if update.effective_user else 'друг'}!**
 
-Рад видеть тебя в **GordlinkBot** 🤖 — умном помощнике для автоматизации от команды RobloxScriptRBX!
+Рад видеть тебя в **BAFScripts** 🤖 — умном помощнике для автоматизации от команды RobloxScriptRBX!
 
 **✨ Что я умею:**
 • 🔗 **Мгновенный доступ** — умные ссылки ко всем ресурсам
@@ -439,7 +439,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Все новости и материалы публикуются в наших Telegram-каналах — обязательно подпишись!
 
 **🌐 Наши ресурсы:**
-• 🚀 **Главный канал:** [RobloxScriptRBX](https://t.me/robloxscriptrbx)
+• 🚀 **Главный канал:** [𝐑𝐎𝐁𝐋𝐎𝐗 𝐒𝐂𝐑𝐈𝐑𝐓𝐒](https://t.me/Bafanchik_Script)
 
 **🛡️ Безопасность важна:**
 Всегда проверяй код перед использованием и соблюдай правила платформ!"""
