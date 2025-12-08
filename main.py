@@ -427,7 +427,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = f"""**👋 Привет, {update.effective_user.first_name if update.effective_user else 'друг'}!**
 
-Рад видеть тебя в **BAFScripts** 🤖 — умном помощнике для автоматизации от команды RobloxScriptRBX!
+Рад видеть тебя в **BAFScripts** 🤖 — умном помощнике для автоматизации от команды 𝐑𝐎𝐁𝐋𝐎𝐗 𝐒𝐂𝐑𝐈𝐑𝐓𝐒!
 
 **✨ Что я умею:**
 • 🔗 **Мгновенный доступ** — умные ссылки ко всем ресурсам
