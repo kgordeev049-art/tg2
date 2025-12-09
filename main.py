@@ -384,38 +384,29 @@ async def check_user_subscription(user_id: int, bot) -> Tuple[int, int, List[str
     subscribed_count = 0
     not_subscribed = []
     
-    tasks = []
     for channel_id, username, _, _, _ in channels:
-        tasks.append(check_single_channel_subscription(bot, user_id, channel_id, username))
-    
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    for result in results:
-        if isinstance(result, tuple):
-            if result[0]:
-                subscribed_count += 1
+        try:
+            member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
+            
+            if member.status in ['left', 'kicked', 'restricted']:
+                not_subscribed.append(username)
             else:
-                not_subscribed.append(result[1])
+                subscribed_count += 1
+                
+        except BadRequest as e:
+            if "user not found" in str(e).lower():
+                not_subscribed.append(username)
+            elif "chat not found" in str(e).lower():
+                # Канал не найден, возможно, бот не добавлен в канал
+                not_subscribed.append(username)
+            else:
+                logger.error(f"Ошибка проверки подписки для {username}: {str(e)}")
+                not_subscribed.append(username)
+        except Exception as e:
+            logger.error(f"Ошибка проверки подписки для {username}: {str(e)}")
+            not_subscribed.append(username)
     
     return subscribed_count, total_channels, not_subscribed
-
-async def check_single_channel_subscription(bot, user_id: int, channel_id: str, username: str) -> Tuple[bool, str]:
-    try:
-        member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
-        
-        if member.status in ['left', 'kicked', 'restricted']:
-            return False, username
-        else:
-            return True, username
-            
-    except BadRequest as e:
-        if "user not found" in str(e).lower() or "chat not found" in str(e).lower():
-            return False, username
-        logger.error(f"BadRequest для {username}: {str(e)}")
-        return False, username
-    except Exception as e:
-        logger.error(f"Ошибка проверки подписки для {username}: {str(e)}")
-        return False, username
 
 async def safe_edit_message(query, text, reply_markup=None, parse_mode='HTML'):
     try:
@@ -471,15 +462,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.edit_message_text(text, parse_mode='HTML')
         return
     
+    # Обновляем клавиатуру - убираем админ панель
     keyboard = [
-        [InlineKeyboardButton("🔗 Начать байпасс ссылок", callback_data="bypass_start")],
-        [InlineKeyboardButton("📦 Каталог скриптов", callback_data="catalog")],
-        [InlineKeyboardButton("🔎 Поиск скриптов", callback_data="search_scripts")],
-        [InlineKeyboardButton("⚙️ Сервисы для байп", callback_data="services")],
-        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")]
+        [
+            InlineKeyboardButton("🔗 Начать байпасс ссылок", callback_data="bypass_start"),
+            InlineKeyboardButton("📦 Каталог скриптов", callback_data="catalog")
+        ],
+        [
+            InlineKeyboardButton("🔎 Поиск скриптов", callback_data="search_scripts"),
+            InlineKeyboardButton("⚙️ Сервисы для байп", callback_data="services")
+        ],
+        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
+        [InlineKeyboardButton("🚀 Главный канал", url="https://t.me/robloxscriptrbx")]
     ]
-    
-    keyboard.append([InlineKeyboardButton("🚀 Главный канал", url="https://t.me/robloxscriptrbx")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -555,7 +550,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Время выполнения start: {execution_time:.3f} сек")
 
 async def panel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /PanelAdmin"""
+    """Обработчик команды /paneladmin"""
     user_id = update.effective_user.id
     
     if not is_admin(user_id):
@@ -604,49 +599,45 @@ async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Получаем все скрипты
     scripts = get_all_scripts()
     
     if not scripts:
         keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.message.reply_text(
+        await safe_edit_message(query,
             "<b>📭 Каталог скриптов пуст</b>\n\n"
             "Скриптов пока нет в базе данных.",
-            reply_markup=reply_markup,
-            parse_mode='HTML'
+            reply_markup=reply_markup
         )
         return
     
-    # Создаем словарь для группировки по играм
     games_dict = {}
     for token, game_name, script_name, content, views in scripts:
+        if not game_name:
+            game_name = "Без категории"
         if game_name not in games_dict:
             games_dict[game_name] = []
         games_dict[game_name].append((token, script_name, views))
     
-    # Создаем клавиатуру с категориями
+    # Создаем клавиатуру в формате 2x2
     keyboard = []
-    for game_name in sorted(games_dict.keys()):
-        if game_name:
-            keyboard.append([
-                InlineKeyboardButton(f"📁 {game_name}", callback_data=f"category_{game_name}")
-            ])
+    row = []
     
-    # Добавляем скрипты без категории
-    if '' in games_dict or 'Без категории' in games_dict:
-        keyboard.append([
-            InlineKeyboardButton("📁 Без категории", callback_data="category_Без категории")
-        ])
+    for i, game_name in enumerate(sorted(games_dict.keys()), 1):
+        button = InlineKeyboardButton(f"📁 {game_name}", callback_data=f"category_{game_name}")
+        row.append(button)
+        
+        if i % 2 == 0 or i == len(games_dict):
+            keyboard.append(row)
+            row = []
     
     keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.message.reply_text(
+    await safe_edit_message(query,
         "<b>📂 Категории</b>\n\n"
         "Выберите раздел:",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
+        reply_markup=reply_markup
     )
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -656,10 +647,8 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     category_name = query.data.replace("category_", "")
     
-    # Получаем все скрипты
     scripts = get_all_scripts()
     
-    # Фильтруем скрипты по категории
     if category_name == "Без категории":
         category_scripts = [(t, g, n, c, v) for t, g, n, c, v in scripts if not g or g == '']
     else:
@@ -672,14 +661,12 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        await safe_edit_message(query,
             f"<b>📭 В категории '{category_name}' нет скриптов</b>",
-            reply_markup=reply_markup,
-            parse_mode='HTML'
+            reply_markup=reply_markup
         )
         return
     
-    # Создаем клавиатуру со скриптами в сетке 2x2
     keyboard = []
     row = []
     
@@ -688,7 +675,7 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(display_name) > 15:
             display_name = display_name[:15] + "..."
         
-        button = InlineKeyboardButton(f"🧩{display_name}", callback_data=f"script_{token}")
+        button = InlineKeyboardButton(f"🧩 {display_name}", callback_data=f"script_{token}")
         row.append(button)
         
         if i % 2 == 0 or i == len(category_scripts):
@@ -698,12 +685,11 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("🔙 Назад в каталог", callback_data="catalog")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
+    await safe_edit_message(query,
         f"<b>📂 {category_name}</b>\n\n"
         f"Найдено скриптов: <b>{len(category_scripts)}</b>\n\n"
         "Выберите скрипт:",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
+        reply_markup=reply_markup
     )
 
 # ========== ОБРАБОТКА СКРИПТОВ ==========
@@ -731,35 +717,30 @@ async def handle_script_access(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if subscribed_count >= total_channels:
             update_script_views(token)
-            await send_script(update, script_data, token)
+            await send_script(update, context, script_data, token)
             return
         
-        # Формируем текст с каналами для подписки
         text = f"<b>Подпишись на каналы, чтобы получить скрипт — бот проверит подписки автоматически</b>\n\n"
         
         for channel_id, username, _, _, _ in channels:
             if username in not_subscribed_list:
-                text += f"<b>=></b> {username}\n"
+                if username.startswith('@'):
+                    text += f"<b>=></b> {username}\n"
+                elif username.startswith('https://t.me/'):
+                    text += f"<b>=></b> {username}\n"
+                else:
+                    text += f"<b>=></b> @{username}\n"
         
-        text += f"\nУ вас есть 60 секунд, чтобы подписаться на эти каналы"
+        text += f"\n<b>У вас есть 60 секунд, чтобы подписаться на эти каналы</b>"
         
-        # Сохраняем время начала ожидания
         user_key = f"{user_id}_{token}"
         subscription_timers[user_key] = datetime.now()
         
-        # Отправляем сообщение с таймером
         if update.message:
-            timer_msg = await update.message.reply_text(
-                text,
-                parse_mode='HTML'
-            )
+            timer_msg = await update.message.reply_text(text, parse_mode='HTML')
         else:
-            timer_msg = await update.callback_query.message.reply_text(
-                text,
-                parse_mode='HTML'
-            )
+            timer_msg = await update.callback_query.message.reply_text(text, parse_mode='HTML')
         
-        # Запускаем таймер
         context.job_queue.run_once(
             check_subscription_timer,
             60,
@@ -771,25 +752,24 @@ async def handle_script_access(update: Update, context: ContextTypes.DEFAULT_TYP
             }
         )
         
-        # Кнопка для проверки подписки
         keyboard = [[InlineKeyboardButton("✅ Я подписался!", callback_data=f"check_sub_{token}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.message:
             await update.message.reply_text(
-                "Подпишитесь для продолжения:",
+                "<b>Подпишитесь для продолжения</b>",
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
         else:
             await update.callback_query.message.reply_text(
-                "Подпишитесь для продолжения:",
+                "<b>Подпишитесь для продолжения</b>",
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
     else:
         update_script_views(token)
-        await send_script(update, script_data, token)
+        await send_script(update, context, script_data, token)
 
 async def check_subscription_timer(context):
     """Проверка таймера подписки"""
@@ -801,11 +781,9 @@ async def check_subscription_timer(context):
     
     user_key = f"{user_id}_{token}"
     
-    # Проверяем, истекло ли время
     if user_key in subscription_timers:
         start_time = subscription_timers[user_key]
         if datetime.now() - start_time > timedelta(seconds=60):
-            # Время истекло
             await context.bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -824,11 +802,10 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     user_key = f"{user_id}_{token}"
     
-    # Проверяем, не истекло ли время
     if user_key in subscription_timers:
         start_time = subscription_timers[user_key]
         if datetime.now() - start_time > timedelta(seconds=60):
-            await query.edit_message_text("<b>Время истекло...</b>", parse_mode='HTML')
+            await safe_edit_message(query, "<b>Время истекло...</b>")
             subscription_timers.pop(user_key, None)
             return
     
@@ -839,40 +816,40 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         if script_data:
             update_script_views(token)
-            await send_script(query, script_data, token)
+            subscription_timers.pop(user_key, None)
+            await send_script(query, context, script_data, token)
         else:
-            await query.edit_message_text("❌ Скрипт не найден!", parse_mode='HTML')
+            await safe_edit_message(query, "❌ Скрипт не найден!")
     else:
-        # Формируем текст с оставшимися каналами
         text = f"<b>Вы подписались не на все каналы ({subscribed_count} из {total_channels})</b>\n\n"
         
         channels = get_all_channels()
         for channel_id, username, _, _, _ in channels:
             if username in not_subscribed_list:
-                text += f"<b>=></b> {username}\n"
+                if username.startswith('@'):
+                    text += f"<b>=></b> {username}\n"
+                elif username.startswith('https://t.me/'):
+                    text += f"<b>=></b> {username}\n"
+                else:
+                    text += f"<b>=></b> @{username}\n"
         
         keyboard = [
             [InlineKeyboardButton("🔄 Проверить снова", callback_data=f"check_sub_{token}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-        )
+        await safe_edit_message(query, text, reply_markup=reply_markup)
 
-async def send_script(update, script_data: dict, token: str):
+async def send_script(update, context, script_data: dict, token: str):
     """Отправка скрипта"""
     script_content = script_data.get('script_content', '')
     game_name = script_data.get('game_name', '')
     script_name = script_data.get('script_name', '')
     has_key = script_data.get('has_key', False)
+    photo_id = script_data.get('photo_id')
     
-    # Экранируем HTML символы в скрипте
     escaped_content = script_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     
-    # Формируем заголовок
     if game_name and script_name:
         title = f"<b>🎮 {game_name} - {script_name}</b>\n\n"
     elif script_name:
@@ -880,55 +857,63 @@ async def send_script(update, script_data: dict, token: str):
     else:
         title = f"<b>🎮 Скрипт {token}</b>\n\n"
     
-    # Формируем сообщение для "поделиться"
-    bot_username = None
-    if hasattr(update, 'bot'):
-        bot_username = update.bot.username
-    elif hasattr(update, 'message') and update.message:
-        bot_username = update.message.bot.username
-    elif hasattr(update, 'callback_query'):
-        bot_username = update.callback_query.message.bot.username
+    bot_username = context.bot.username
+    share_url = f"https://t.me/{bot_username}?start={token}"
     
-    share_url = f"https://t.me/{bot_username}?start={token}" if bot_username else f"Нажмите /start {token}"
-    
-    # Кнопки
     keyboard = [
-        [InlineKeyboardButton("📤 Поделиться", switch_inline_query=f"script_{token}")],
+        [InlineKeyboardButton("📤 Поделиться", url=f"https://t.me/share/url?url={share_url}&text=Классный скрипт!")],
         [InlineKeyboardButton("📦 В каталог", callback_data="catalog")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Отправляем полный скрипт
     script_message = f"{title}<code>{escaped_content}</code>\n\n🚀 <b>Удачи в игре!</b>"
     
-    if hasattr(update, 'edit_message_text'):
-        await update.edit_message_text(script_message, parse_mode='HTML')
-        await update.message.reply_text(
-            f"🔑 <b>Ключ:</b> <code>{token}</code>\n"
-            f"🔗 <b>Ссылка для распространения:</b> <code>{share_url}</code>",
+    share_message = (
+        f"🔑 <b>Ключ:</b> <code>{token}</code>\n"
+        f"🔗 <b>Ссылка для распространения:</b>\n<code>{share_url}</code>"
+    )
+    
+    if update.callback_query:
+        if photo_id:
+            try:
+                await context.bot.send_photo(
+                    chat_id=update.callback_query.message.chat_id,
+                    photo=photo_id,
+                    caption=script_message,
+                    parse_mode='HTML'
+                )
+            except:
+                await update.callback_query.message.reply_text(script_message, parse_mode='HTML')
+        else:
+            await update.callback_query.message.reply_text(script_message, parse_mode='HTML')
+        
+        await update.callback_query.message.reply_text(
+            share_message,
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
-    elif hasattr(update, 'message'):
-        await update.message.reply_text(script_message, parse_mode='HTML')
+    elif update.message:
+        if photo_id:
+            try:
+                await update.message.reply_photo(
+                    photo=photo_id,
+                    caption=script_message,
+                    parse_mode='HTML'
+                )
+            except:
+                await update.message.reply_text(script_message, parse_mode='HTML')
+        else:
+            await update.message.reply_text(script_message, parse_mode='HTML')
+        
         await update.message.reply_text(
-            f"🔑 <b>Ключ:</b> <code>{token}</code>\n"
-            f"🔗 <b>Ссылка для распространения:</b> <code>{share_url}</code>",
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-        )
-    else:
-        await update.reply_text(script_message, parse_mode='HTML')
-        await update.reply_text(
-            f"🔑 <b>Ключ:</b> <code>{token}</code>\n"
-            f"🔗 <b>Ссылка для распространения:</b> <code>{share_url}</code>",
+            share_message,
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
 
-# ========== ДОБАВЛЕНИЕ СКРИПТА (НОВЫЙ ПРОЦЕСС) ==========
+# ========== ДОБАВЛЕНИЕ СКРИПТА ==========
 async def add_script_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало добавления скрипта - шаг 1: название игры"""
+    """Начало добавления скрипта"""
     query = update.callback_query
     await query.answer()
     
@@ -936,9 +921,7 @@ async def add_script_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit_message(query, "❌ У вас нет прав для добавления скриптов!")
         return ConversationHandler.END
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await safe_edit_message(query, "<b>🎮 Введите название игры:</b>", reply_markup=reply_markup)
@@ -946,36 +929,49 @@ async def add_script_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ADD_SCRIPT_GAME
 
 async def add_script_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Шаг 2: название скрипта"""
+    """Шаг 2: проверка существования игры"""
     game_name = update.message.text.strip()
-    context.user_data['game_name'] = game_name
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    scripts = get_all_scripts()
+    existing_games = set(s[1] for s in scripts if s[1])
     
-    await update.message.reply_text(
-        "<b>📝 Введите название скрипта:</b>",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
-    )
+    if game_name in existing_games:
+        context.user_data['game_name'] = game_name
+        
+        keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"<b>📁 {game_name}</b>\n\n"
+            "<b>📝 Введите название скрипта:</b>",
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
+    else:
+        context.user_data['game_name'] = game_name
+        
+        keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"<b>📁 {game_name}</b> (новая категория)\n\n"
+            "<b>📝 Введите название скрипта:</b>",
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
     
     return ADD_SCRIPT_NAME
 
 async def add_script_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Шаг 3: фотография скрипта"""
+    """Шаг 3: фотография"""
     script_name = update.message.text.strip()
     context.user_data['script_name'] = script_name
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        "<b>🖼 Отправьте фотографию вашего скрипта:</b>\n"
-        "(если фотографии нет, отправьте любой текст)",
+        "<b>🖼 Отправьте фотографию вашего скрипта:</b>",
         reply_markup=reply_markup,
         parse_mode='HTML'
     )
@@ -993,9 +989,7 @@ async def add_script_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         context.user_data['photo_id'] = None
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
@@ -1016,7 +1010,7 @@ async def add_script_content(update: Update, context: ContextTypes.DEFAULT_TYPE)
             InlineKeyboardButton("🔑 С ключом", callback_data="key_yes"),
             InlineKeyboardButton("🚫 Без ключа", callback_data="key_no")
         ],
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+        [InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -1036,15 +1030,14 @@ async def add_script_key_choice(update: Update, context: ContextTypes.DEFAULT_TY
     has_key = query.data == "key_yes"
     context.user_data['has_key'] = has_key
     
-    # Генерируем токен
     token = generate_token()
     context.user_data['token'] = token
     
-    # Формируем превью поста
     game_name = context.user_data.get('game_name', '')
     script_name = context.user_data.get('script_name', '')
     script_content = context.user_data.get('script_content', '')
     has_key_text = "🔑 С ключом" if has_key else "🚫 Без ключа"
+    photo_id = context.user_data.get('photo_id')
     
     preview_text = f"<b>🎮 {game_name}</b>\n"
     preview_text += f"<b>📝 {script_name}</b>\n\n"
@@ -1063,23 +1056,37 @@ async def add_script_key_choice(update: Update, context: ContextTypes.DEFAULT_TY
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await safe_edit_message(query, 
-        f"<b>📋 Это верный пост скрипта?</b>\n\n{preview_text}",
-        reply_markup=reply_markup
-    )
+    if photo_id:
+        try:
+            await query.message.reply_photo(
+                photo=photo_id,
+                caption=f"<b>📋 Это верный пост скрипта?</b>\n\n{preview_text}",
+                reply_markup=reply_markup,
+                parse_mode='HTML'
+            )
+        except:
+            await safe_edit_message(query, 
+                f"<b>📋 Это верный пост скрипта?</b>\n\n{preview_text}",
+                reply_markup=reply_markup
+            )
+    else:
+        await safe_edit_message(query, 
+            f"<b>📋 Это верный пост скрипта?</b>\n\n{preview_text}",
+            reply_markup=reply_markup
+        )
     
     return ADD_SCRIPT_CONFIRM
 
 async def add_script_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Шаг 7: завершение добавления скрипта"""
+    """Шаг 7: завершение"""
     query = update.callback_query
     await query.answer()
     
     if query.data == "confirm_no":
         await safe_edit_message(query, "❌ Добавление скрипта отменено!")
+        context.user_data.clear()
         return ConversationHandler.END
     
-    # Сохраняем скрипт
     token = context.user_data['token']
     script_data = {
         'token': token,
@@ -1095,12 +1102,11 @@ async def add_script_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     save_script_to_file(token, script_data)
     
-    # Формируем ссылку для распространения
     bot_username = context.bot.username
     share_url = f"https://t.me/{bot_username}?start={token}"
     
     keyboard = [
-        [InlineKeyboardButton("📤 Поделиться", switch_inline_query=f"script_{token}")],
+        [InlineKeyboardButton("📤 Поделиться", url=f"https://t.me/share/url?url={share_url}&text=Классный скрипт!")],
         [InlineKeyboardButton("🔙 В админ панель", callback_data="admin_panel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1113,30 +1119,9 @@ async def add_script_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=reply_markup
     )
     
-    # Очищаем данные
     context.user_data.clear()
     
     return ConversationHandler.END
-
-# ========== КОПИРОВАНИЕ ССЫЛКИ ==========
-async def copy_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Копирование ссылки в буфер обмена"""
-    query = update.callback_query
-    await query.answer()
-    
-    token = query.data.replace("copy_", "")
-    
-    # Для Telegram Web App можно использовать copyTextToClipboard
-    # Но в обычном боте просто отправляем ссылку
-    bot_username = context.bot.username
-    link_url = f"https://t.me/{bot_username}?start={token}"
-    
-    await query.message.reply_text(
-        f"📋 <b>Ссылка скопирована!</b>\n\n"
-        f"<code>{link_url}</code>\n\n"
-        f"Отправьте эту ссылку, чтобы поделиться скриптом.",
-        parse_mode='HTML'
-    )
 
 # ========== НАСТРОЙКИ ==========
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1155,42 +1140,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await safe_edit_message(query, text, reply_markup)
 
-async def my_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Мой профиль"""
-    query = update.callback_query
-    await query.answer()
-    
-    user = query.from_user
-    user_id = user.id
-    
-    # Получаем статистику пользователя
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            'SELECT last_seen FROM users WHERE user_id = ?',
-            (user_id,)
-        )
-        result = cursor.fetchone()
-        last_seen = result['last_seen'] if result else "Неизвестно"
-    
-    text = f"<b>Пробиль</b>\n\n"
-    text += f"<b>ID:</b> <code>{user_id}</code>\n"
-    text += f"<b>Имя:</b> {user.first_name or 'Не указано'}\n"
-    if user.last_name:
-        text += f"<b>Фамилия:</b> {user.last_name}\n"
-    text += f"<b>Username:</b> @{user.username or 'Не указан'}\n"
-    text += f"<b>Последняя активность:</b> {last_seen}"
-    
-    if is_admin(user_id):
-        text += "\n\n<b>🎖 Статус:</b> Администратор"
-    
-    keyboard = [
-        [InlineKeyboardButton("📋 В меню", callback_data="back_to_start")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
 # ========== ОБРАБОТКА ССЫЛОК ==========
 async def handle_link_access(update: Update, context: ContextTypes.DEFAULT_TYPE, token: str):
     """Обработка доступа по ссылке"""
@@ -1204,17 +1153,14 @@ async def handle_link_access(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await update.callback_query.edit_message_text(text, parse_mode='HTML')
         return
     
-    # Увеличиваем счетчик просмотров
     update_link_views_in_file(token)
     
-    # Отправляем контент в зависимости от типа
     content_type = link_data.get('content_type', 'text')
     content = link_data.get('content', '')
     caption = link_data.get('caption', '')
     button_text = link_data.get('button_text')
     button_url = link_data.get('button_url')
     
-    # Создаем клавиатуру, если есть кнопка
     reply_markup = None
     if button_text and button_url:
         keyboard = [[InlineKeyboardButton(button_text, url=button_url)]]
@@ -1262,297 +1208,221 @@ async def handle_link_access(update: Update, context: ContextTypes.DEFAULT_TYPE,
             parse_mode='HTML'
         )
 
+# ========== СОЗДАНИЕ ССЫЛОК ==========
+async def create_link_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало создания ссылки"""
+    query = update.callback_query
+    await query.answer()
+    
+    if not has_permission(query.from_user.id, 'create_link'):
+        await safe_edit_message(query, "❌ У вас нет прав для создания ссылок!")
+        return ConversationHandler.END
+    
+    keyboard = [[InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query,
+        "<b>🔗 Создание ссылки</b>\n\n"
+        "Отправьте содержимое ссылки. Это может быть текст, картинка, видео, документ, ссылка.",
+        reply_markup=reply_markup
+    )
+    
+    return CREATE_LINK_CONTENT
+
+async def create_link_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Получение контента для ссылки"""
+    if update.message.text:
+        context.user_data['link_content_type'] = 'text'
+        context.user_data['link_content'] = update.message.text
+    elif update.message.photo:
+        context.user_data['link_content_type'] = 'photo'
+        photo_file = await update.message.photo[-1].get_file()
+        context.user_data['link_content'] = photo_file.file_id
+        context.user_data['link_caption'] = update.message.caption or ''
+    elif update.message.video:
+        context.user_data['link_content_type'] = 'video'
+        video_file = await update.message.video.get_file()
+        context.user_data['link_content'] = video_file.file_id
+        context.user_data['link_caption'] = update.message.caption or ''
+    elif update.message.document:
+        context.user_data['link_content_type'] = 'document'
+        document_file = await update.message.document.get_file()
+        context.user_data['link_content'] = document_file.file_id
+        context.user_data['link_caption'] = update.message.caption or ''
+    else:
+        await update.message.reply_text("❌ Неподдерживаемый тип контента!")
+        return ConversationHandler.END
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Отмена", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "<b>🔗 Создание ссылки</b>\n\n"
+        "Если вы хотите добавить кнопку, то отправьте боту строку вида:\n"
+        "[Текст кнопки + ссылка]\n"
+        "где \"Текст кнопки\" — название кнопки, а \"ссылка\" — URL.\n\n"
+        "Если кнопка не нужна, отправьте: /skip",
+        reply_markup=reply_markup,
+        parse_mode='HTML'
+    )
+    
+    return CREATE_LINK_BUTTON
+
+async def create_link_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Получение кнопки для ссылки"""
+    if update.message.text == "/skip":
+        context.user_data['link_button_text'] = None
+        context.user_data['link_button_url'] = None
+    else:
+        text = update.message.text.strip()
+        if text.startswith('[') and text.endswith(']'):
+            content = text[1:-1]
+            if ' + ' in content:
+                button_text, button_url = content.split(' + ', 1)
+                context.user_data['link_button_text'] = button_text.strip()
+                context.user_data['link_button_url'] = button_url.strip()
+            else:
+                await update.message.reply_text("❌ Неверный формат! Используйте: [Текст кнопки + ссылка]")
+                return CREATE_LINK_BUTTON
+        else:
+            await update.message.reply_text("❌ Неверный формат! Используйте: [Текст кнопки + ссылка]")
+            return CREATE_LINK_BUTTON
+    
+    # Создаем ссылку
+    token = generate_token()
+    link_data = {
+        'token': token,
+        'content_type': context.user_data.get('link_content_type'),
+        'content': context.user_data.get('link_content'),
+        'caption': context.user_data.get('link_caption', ''),
+        'button_text': context.user_data.get('link_button_text'),
+        'button_url': context.user_data.get('link_button_url'),
+        'created_by': update.effective_user.id,
+        'created_date': datetime.now().isoformat(),
+        'views': 0
+    }
+    
+    save_link_to_file(token, link_data)
+    
+    bot_username = context.bot.username
+    share_url = f"https://t.me/{bot_username}?start={token}"
+    
+    await update.message.reply_text(
+        f"<b>✅ Создание ссылки завершено!</b>\n\n"
+        f"<b>Номер ссылки:</b> <code>{token}</code>\n"
+        f"<b>Ссылка:</b> <code>{share_url}</code>",
+        parse_mode='HTML'
+    )
+    
+    context.user_data.clear()
+    return ConversationHandler.END
+
 # ========== ДРУГИЕ ФУНКЦИИ ==========
 async def bypass_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало байпасса ссылок"""
     query = update.callback_query
     await query.answer()
     
     text = "🚧 <b>Байпасс ссылок в разработке</b>\n\n"
     text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await safe_edit_message(query, text, reply_markup)
 
 async def search_scripts_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало поиска скриптов"""
     query = update.callback_query
     await query.answer()
     
     text = "🔍 <b>Поиск скриптов в разработке</b>\n\n"
     text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await safe_edit_message(query, text, reply_markup)
 
 async def services_bypass(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сервисы для байпасса"""
     query = update.callback_query
     await query.answer()
     
     text = "⚙️ <b>Сервисы для байпасса в разработке</b>\n\n"
     text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await safe_edit_message(query, text, reply_markup)
 
 async def add_channel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало добавления канала"""
     query = update.callback_query
     await query.answer()
     
     text = "➕ <b>Добавление канала в разработке</b>\n\n"
     text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
     
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await safe_edit_message(query, text, reply_markup)
 
 async def remove_channel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало удаления канала"""
     query = update.callback_query
     await query.answer()
-    
-    text = "➖ <b>Удаление канала в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "➖ <b>Удаление канала в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def list_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Список каналов"""
     query = update.callback_query
     await query.answer()
-    
-    text = "📋 <b>Список каналов в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "📋 <b>Список каналов в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def add_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало добавления администратора"""
     query = update.callback_query
     await query.answer()
-    
-    text = "➕ <b>Добавление администратора в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "➕ <b>Добавление администратора в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def remove_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало удаления администратора"""
     query = update.callback_query
     await query.answer()
-    
-    text = "➖ <b>Удаление администратора в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "➖ <b>Удаление администратора в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Список администраторов"""
     query = update.callback_query
     await query.answer()
-    
-    text = "📋 <b>Список администраторов в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "📋 <b>Список администраторов в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def view_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Статистика"""
     query = update.callback_query
     await query.answer()
-    
-    text = "📊 <b>Статистика в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def stats_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Статистика каналов"""
-    query = update.callback_query
-    await query.answer()
-    
-    text = "📊 <b>Статистика каналов в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="view_stats")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def stats_scripts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Статистика скриптов"""
-    query = update.callback_query
-    await query.answer()
-    
-    text = "📊 <b>Статистика скриптов в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="view_stats")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def show_all_scripts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать все скрипты"""
-    query = update.callback_query
-    await query.answer()
-    
-    text = "📋 <b>Список скриптов в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "📊 <b>Статистика в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def broadcast_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Меню рассылки"""
     query = update.callback_query
     await query.answer()
-    
-    text = "📢 <b>Рассылка в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def users_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Статистика пользователей"""
-    query = update.callback_query
-    await query.answer()
-    
-    text = "👥 <b>Статистика пользователей в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="broadcast_menu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def create_link_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Создание ссылки"""
-    query = update.callback_query
-    await query.answer()
-    
-    text = "🔗 <b>Создание ссылки в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
+    text = "📢 <b>Рассылка в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 async def delete_script_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало удаления скрипта"""
     query = update.callback_query
     await query.answer()
-    
-    text = "➖ <b>Удаление скрипта в разработке</b>\n\n"
-    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await safe_edit_message(query, text, reply_markup)
-
-async def remove_channel_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Подтверждение удаления канала"""
-    query = update.callback_query
-    await query.answer()
-    
-    await safe_edit_message(query, "ℹ️ Функция в разработке")
-
-async def remove_admin_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Подтверждение удаления администратора"""
-    query = update.callback_query
-    await query.answer()
-    
-    await safe_edit_message(query, "ℹ️ Функция в разработке")
-
-async def save_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сохранение администратора"""
-    query = update.callback_query
-    await query.answer()
-    
-    await safe_edit_message(query, "ℹ️ Функция в разработке")
-
-async def toggle_permission(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Переключение прав администратора"""
-    query = update.callback_query
-    await query.answer()
-    
-    await safe_edit_message(query, "ℹ️ Функция в разработке")
-
-# ========== ФУНКЦИЯ ОТМЕНЫ ==========
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отмена текущего действия"""
-    query = update.callback_query
-    await query.answer()
-    await admin_panel(update, context)
-    return ConversationHandler.END
+    text = "➖ <b>Удаление скрипта в разработке</b>"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+    await safe_edit_message(query, text, InlineKeyboardMarkup(keyboard))
 
 # ========== ОБРАБОТЧИК CALLBACK ==========
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1560,41 +1430,65 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
     
-    handlers = {
-        "admin_panel": admin_panel,
-        "back_to_start": start,
-        "bypass_start": bypass_start,
-        "catalog": catalog,
-        "search_scripts": search_scripts_start,
-        "services": services_bypass,
-        "settings": settings_menu,
-        "my_profile": my_profile,
-        "list_channels": list_channels,
-        "list_admins": list_admins,
-        "view_stats": view_stats,
-        "stats_channels": stats_channels,
-        "stats_scripts": stats_scripts,
-        "show_all_scripts": show_all_scripts,
-        "broadcast_menu": broadcast_menu,
-        "users_stats": users_stats,
-        "create_link": create_link_start,
-    }
-    
-    if data in handlers:
-        await handlers[data](update, context)
+    if data == "back_to_start":
+        await start(update, context)
+    elif data == "admin_panel":
+        user_id = query.from_user.id
+        if not is_admin(user_id):
+            await safe_edit_message(query, "❌ У вас нет доступа к админ панели!")
+            return
+        
+        keyboard = []
+        
+        if has_permission(user_id, 'add_script'):
+            keyboard.append([InlineKeyboardButton("➕ Добавить скрипт", callback_data="add_script")])
+        if has_permission(user_id, 'delete_script'):
+            keyboard.append([InlineKeyboardButton("➖ Удалить скрипт", callback_data="delete_script")])
+        if has_permission(user_id, 'add_channel'):
+            keyboard.append([InlineKeyboardButton("➕ Добавить ОП", callback_data="add_channel")])
+        if has_permission(user_id, 'remove_channel'):
+            keyboard.append([InlineKeyboardButton("✔ Удалить ОП", callback_data="remove_channel")])
+        if has_permission(user_id, 'list_channels'):
+            keyboard.append([InlineKeyboardButton("🗒 Список ОП", callback_data="list_channels")])
+        if has_permission(user_id, 'add_admin'):
+            keyboard.append([InlineKeyboardButton("➕ Добавить Админа", callback_data="add_admin")])
+        if has_permission(user_id, 'remove_admin'):
+            keyboard.append([InlineKeyboardButton("➖ Снять Админа", callback_data="remove_admin")])
+        if has_permission(user_id, 'list_admins'):
+            keyboard.append([InlineKeyboardButton("📋 Список Админов", callback_data="list_admins")])
+        if has_permission(user_id, 'view_stats'):
+            keyboard.append([InlineKeyboardButton("📊 Статистика", callback_data="view_stats")])
+        if has_permission(user_id, 'broadcast'):
+            keyboard.append([InlineKeyboardButton("📢 Рассылка", callback_data="broadcast_menu")])
+        if has_permission(user_id, 'create_link'):
+            keyboard.append([InlineKeyboardButton("🔗 Создание ссылки", callback_data="create_link")])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await safe_edit_message(query,
+            "<b>👑 Панель администратора BAFScripts</b>\n\n"
+            "Здесь вы можете управлять ботом, добавлять скрипты, настраивать каналы и многое другое.",
+            reply_markup=reply_markup
+        )
+    elif data == "bypass_start":
+        await bypass_start(update, context)
+    elif data == "catalog":
+        await catalog(update, context)
+    elif data == "search_scripts":
+        await search_scripts_start(update, context)
+    elif data == "services":
+        await services_bypass(update, context)
+    elif data == "settings":
+        await settings_menu(update, context)
     elif data.startswith("check_sub_"):
         await check_subscription(update, context)
     elif data.startswith("script_"):
         token = data.replace("script_", "")
         await handle_script_access(update, context, token)
-    elif data.startswith("copy_"):
-        await copy_link(update, context)
     elif data.startswith("category_"):
         await show_category(update, context)
-    elif data.startswith("rmch_"):
-        await remove_channel_confirm(update, context)
-    elif data.startswith("rmadm_"):
-        await remove_admin_confirm(update, context)
     elif data == "add_script":
         await add_script_start(update, context)
     elif data == "delete_script":
@@ -1607,16 +1501,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await add_admin_start(update, context)
     elif data == "remove_admin":
         await remove_admin_start(update, context)
-    elif data == "save_admin":
-        await save_admin(update, context)
-    elif data.startswith("perm_"):
-        await toggle_permission(update, context)
+    elif data == "list_channels":
+        await list_channels(update, context)
+    elif data == "list_admins":
+        await list_admins(update, context)
+    elif data == "view_stats":
+        await view_stats(update, context)
+    elif data == "broadcast_menu":
+        await broadcast_menu(update, context)
+    elif data == "create_link":
+        await create_link_start(update, context)
     elif data.startswith("key_"):
         await add_script_key_choice(update, context)
     elif data.startswith("confirm_"):
         await add_script_confirm(update, context)
 
-# ========== ЗАПУСК БОТА ==========
+# ========== ОСНОВНОЙ КОД ==========
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отмена текущего действия"""
+    query = update.callback_query
+    await query.answer()
+    await safe_edit_message(query, "❌ Действие отменено!")
+    return ConversationHandler.END
+
 def main():
     """Главная функция"""
     init_db()
@@ -1625,7 +1532,7 @@ def main():
     
     # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("PanelAdmin", panel_admin))
+    application.add_handler(CommandHandler("paneladmin", panel_admin))
     
     # ConversationHandler для добавления скрипта
     add_script_conv = ConversationHandler(
@@ -1642,7 +1549,19 @@ def main():
         per_message=False
     )
     
+    # ConversationHandler для создания ссылки
+    create_link_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(create_link_start, pattern="^create_link$")],
+        states={
+            CREATE_LINK_CONTENT: [MessageHandler(filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL, create_link_content)],
+            CREATE_LINK_BUTTON: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_link_button)]
+        },
+        fallbacks=[CommandHandler("skip", create_link_button)],
+        per_message=False
+    )
+    
     application.add_handler(add_script_conv)
+    application.add_handler(create_link_conv)
     
     # Добавляем обработчик callback-запросов
     application.add_handler(CallbackQueryHandler(handle_callback))
