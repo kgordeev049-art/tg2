@@ -1262,7 +1262,7 @@ async def handle_link_access(update: Update, context: ContextTypes.DEFAULT_TYPE,
             parse_mode='HTML'
         )
 
-# ========== ДРУГИЕ ФУНКЦИИ (ЗАГЛУШКИ) ==========
+# ========== ДРУГИЕ ФУНКЦИИ ==========
 async def bypass_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начало байпасса ссылок"""
     query = update.callback_query
