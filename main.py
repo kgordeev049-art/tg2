@@ -1262,6 +1262,298 @@ async def handle_link_access(update: Update, context: ContextTypes.DEFAULT_TYPE,
             parse_mode='HTML'
         )
 
+# ========== ДРУГИЕ ФУНКЦИИ (ЗАГЛУШКИ) ==========
+async def bypass_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало байпасса ссылок"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "🚧 <b>Байпасс ссылок в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def search_scripts_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало поиска скриптов"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "🔍 <b>Поиск скриптов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def services_bypass(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сервисы для байпасса"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "⚙️ <b>Сервисы для байпасса в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def add_channel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало добавления канала"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "➕ <b>Добавление канала в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def remove_channel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало удаления канала"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "➖ <b>Удаление канала в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def list_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Список каналов"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📋 <b>Список каналов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def add_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало добавления администратора"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "➕ <b>Добавление администратора в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def remove_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало удаления администратора"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "➖ <b>Удаление администратора в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Список администраторов"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📋 <b>Список администраторов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def view_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Статистика"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📊 <b>Статистика в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def stats_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Статистика каналов"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📊 <b>Статистика каналов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="view_stats")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def stats_scripts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Статистика скриптов"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📊 <b>Статистика скриптов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="view_stats")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def show_all_scripts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать все скрипты"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📋 <b>Список скриптов в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def broadcast_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Меню рассылки"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "📢 <b>Рассылка в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def users_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Статистика пользователей"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "👥 <b>Статистика пользователей в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="broadcast_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def create_link_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Создание ссылки"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "🔗 <b>Создание ссылки в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def delete_script_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало удаления скрипта"""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "➖ <b>Удаление скрипта в разработке</b>\n\n"
+    text += "Данная функция находится в стадии разработки и будет доступна в ближайшее время."
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_edit_message(query, text, reply_markup)
+
+async def remove_channel_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подтверждение удаления канала"""
+    query = update.callback_query
+    await query.answer()
+    
+    await safe_edit_message(query, "ℹ️ Функция в разработке")
+
+async def remove_admin_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подтверждение удаления администратора"""
+    query = update.callback_query
+    await query.answer()
+    
+    await safe_edit_message(query, "ℹ️ Функция в разработке")
+
+async def save_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сохранение администратора"""
+    query = update.callback_query
+    await query.answer()
+    
+    await safe_edit_message(query, "ℹ️ Функция в разработке")
+
+async def toggle_permission(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Переключение прав администратора"""
+    query = update.callback_query
+    await query.answer()
+    
+    await safe_edit_message(query, "ℹ️ Функция в разработке")
+
+# ========== ФУНКЦИЯ ОТМЕНЫ ==========
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отмена текущего действия"""
+    query = update.callback_query
+    await query.answer()
+    await admin_panel(update, context)
+    return ConversationHandler.END
+
 # ========== ОБРАБОТЧИК CALLBACK ==========
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик callback-запросов"""
@@ -1349,9 +1641,6 @@ def main():
         fallbacks=[CallbackQueryHandler(cancel, pattern="^admin_panel$")],
         per_message=False
     )
-    
-    # Добавляем другие ConversationHandler...
-    # (остальные ConversationHandler остаются без изменений)
     
     application.add_handler(add_script_conv)
     
