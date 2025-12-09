@@ -481,15 +481,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    welcome_text = """**👋 Добро пожаловать в BAFScripts_bot!**
+    welcome_text = """<b>👋 Добро пожаловать в BAFScripts_bot!</b>
 
-🔗 **Нужен простой способ обхода ссылок?**
+🔗 <b>Нужен простой способ обхода ссылок?</b>
 Наш бот поддерживает популярные сервисы, чтобы быстро получать доступ к контенту.
 
-📦 **Также доступен поиск скриптов по категориям!**
+📦 <b>Также доступен поиск скриптов по категориям!</b>
 
-🚀 **Начните прямо сейчас: используйте меню ниже.**
-"""
+🚀 <b>Начните прямо сейчас: используйте меню ниже.</b>"""
     
     if is_callback:
         try:
@@ -498,14 +497,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await query.edit_message_media(
                         media=InputFile(photo),
                         caption=welcome_text,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
                     await query.edit_message_reply_markup(reply_markup=reply_markup)
             else:
                 await query.edit_message_text(
                     welcome_text,
                     reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
         except Exception as e:
             logger.error(f"Не удалось отредактировать сообщение: {e}")
@@ -515,13 +514,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         photo=InputFile(photo),
                         caption=welcome_text,
                         reply_markup=reply_markup,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
             else:
                 await query.message.reply_text(
                     welcome_text,
                     reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
     else:
         try:
@@ -531,20 +530,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         photo=InputFile(photo),
                         caption=welcome_text,
                         reply_markup=reply_markup,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
             else:
                 await update.message.reply_text(
                     welcome_text,
                     reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
         except Exception as e:
             logger.error(f"Ошибка при отправке приветствия: {e}")
             await update.message.reply_text(
                 welcome_text,
                 reply_markup=reply_markup,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
     
     execution_time = (datetime.now() - start_time).total_seconds()
@@ -608,10 +607,10 @@ async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(WELCOME_IMAGE_PATH, 'rb') as photo:
             await query.message.reply_photo(
                 photo=InputFile(photo),
-                caption="📦 **Каталог скриптов BAFScripts**\n\n"
+                caption="<b>📦 Каталог скриптов BAFScripts</b>\n\n"
                        "Здесь вы можете найти все доступные скрипты. "
                        "Выберите нужный скрипт из списка ниже:",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
     
     # Получаем все скрипты
@@ -621,10 +620,10 @@ async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_start")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.message.reply_text(
-            "📭 **Каталог скриптов пуст**\n\n"
+            "<b>📭 Каталог скриптов пуст</b>\n\n"
             "Скриптов пока нет в базе данных.",
             reply_markup=reply_markup,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         return
     
@@ -641,10 +640,10 @@ async def catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.message.reply_text(
-        "**📋 Доступные скрипты:**\n\n"
+        "<b>📋 Доступные скрипты:</b>\n\n"
         "Выберите скрипт для получения:",
         reply_markup=reply_markup,
-        parse_mode='Markdown'
+        parse_mode='HTML'
     )
 
 # ========== СОЗДАНИЕ ССЫЛКИ ==========
@@ -1111,13 +1110,17 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def send_script(update, script_content: str, token: str):
     """Отправка скрипта"""
+    # Экранируем HTML символы в скрипте
+    escaped_content = script_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    
     # Формируем сообщение для "поделиться"
-    share_text = f"🎮 **Скрипт {token}**\n\n"
-    share_text += "```lua\n"
-    share_text += script_content[:100] + "..." if len(script_content) > 100 else script_content
-    share_text += "\n```\n\n"
-    share_text += f"🔑 **Ключ:** `{token}`\n"
-    share_text += "📱 **Поделиться:**"
+    share_text = f"🎮 <b>Скрипт {token}</b>\n\n"
+    if len(escaped_content) > 100:
+        share_text += f"<code>{escaped_content[:100]}...</code>\n\n"
+    else:
+        share_text += f"<code>{escaped_content}</code>\n\n"
+    share_text += f"🔑 <b>Ключ:</b> <code>{token}</code>\n"
+    share_text += "📱 <b>Поделиться:</b>"
     
     # Формируем ссылку для общего доступа
     bot_username = None
@@ -1138,17 +1141,17 @@ async def send_script(update, script_content: str, token: str):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Отправляем полный скрипт
-    script_message = f"<b>✅ Вот ваш скрипт:</b>\n\n<code>{script_content}</code>\n\n🚀 <b>Удачи в игре!</b>"
+    script_message = f"<b>✅ Вот ваш скрипт:</b>\n\n<code>{escaped_content}</code>\n\n🚀 <b>Удачи в игре!</b>"
     
     if hasattr(update, 'edit_message_text'):
         await update.edit_message_text(script_message, parse_mode='HTML')
-        await update.message.reply_text(share_text, reply_markup=reply_markup, parse_mode='Markdown')
+        await update.message.reply_text(share_text, reply_markup=reply_markup, parse_mode='HTML')
     elif hasattr(update, 'message'):
         await update.message.reply_text(script_message, parse_mode='HTML')
-        await update.message.reply_text(share_text, reply_markup=reply_markup, parse_mode='Markdown')
+        await update.message.reply_text(share_text, reply_markup=reply_markup, parse_mode='HTML')
     else:
         await update.reply_text(script_message, parse_mode='HTML')
-        await update.reply_text(share_text, reply_markup=reply_markup, parse_mode='Markdown')
+        await update.reply_text(share_text, reply_markup=reply_markup, parse_mode='HTML')
 
 # ========== ДРУГИЕ ФУНКЦИИ ==========
 async def bypass_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2012,7 +2015,9 @@ async def broadcast_photo_start(update: Update, context: ContextTypes.DEFAULT_TY
 async def broadcast_input_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка введенного текста для рассылки"""
     text = update.message.text
-    context.user_data['broadcast_text'] = text
+    # Экранируем HTML символы
+    escaped_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    context.user_data['broadcast_text'] = escaped_text
     
     user_count = get_user_count()
     
@@ -2024,7 +2029,7 @@ async def broadcast_input_text(update: Update, context: ContextTypes.DEFAULT_TYP
     
     preview_text = f"<b>📝 Предпросмотр рассылки</b>\n\n"
     preview_text += f"<b>👥 Кому:</b> <code>{user_count}</code> пользователям\n\n"
-    preview_text += f"<b>📄 Текст:</b>\n{text}\n\n"
+    preview_text += f"<b>📄 Текст:</b>\n{escaped_text}\n\n"
     preview_text += f"<b>📏 Длина текста:</b> <code>{len(text)}</code> символов\n\n"
     preview_text += "<b>Начать рассылку?</b>"
     
@@ -2075,7 +2080,9 @@ async def broadcast_input_photo_caption(update: Update, context: ContextTypes.DE
 async def broadcast_confirm_photo_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Подтверждение фото-рассылки с текстом"""
     text = update.message.text
-    context.user_data['broadcast_text'] = text
+    # Экранируем HTML символы
+    escaped_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    context.user_data['broadcast_text'] = escaped_text
     
     user_count = get_user_count()
     
@@ -2087,7 +2094,7 @@ async def broadcast_confirm_photo_text(update: Update, context: ContextTypes.DEF
     
     preview_text = f"<b>🖼 Предпросмотр рассылки с фото</b>\n\n"
     preview_text += f"<b>👥 Кому:</b> <code>{user_count}</code> пользователям\n\n"
-    preview_text += f"<b>📄 Текст:</b>\n{text}\n\n"
+    preview_text += f"<b>📄 Текст:</b>\n{escaped_text}\n\n"
     preview_text += f"<b>📏 Длина текста:</b> <code>{len(text)}</code> символов\n\n"
     preview_text += "<b>Начать рассылку?</b>"
     
